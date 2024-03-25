@@ -1,5 +1,3 @@
-serviceAccountKey.json
-
 # compiled output
 /dist
 /node_modules
