@@ -1,58 +1,76 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { Role } from './users.role.enum';
-import { UserDocument } from './users.document';
-
-
-import * as firestore from '@google-cloud/firestore';
-
-import { FirestoreService } from 'src/firestore/firestore.service';
+import { Injectable, NotFoundException, ConflictException, InternalServerErrorException } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
-// This should be a real class/interface representing a user entity
+import { UpdateUserDto } from './dto/update-user.dto';
+import { Prisma, User } from '@prisma/client'; // Import Prisma types, including User
 
 @Injectable()
 export class UsersService {
-    private usersCollection: firestore.CollectionReference;
   
-    constructor(private firestoreService: FirestoreService) {
-      const firestore = this.firestoreService.getFirestore();
-      this.usersCollection = firestore.collection('user');
-    }
-  
-    async create(createUserDto: CreateUserDto): Promise<UserDocument> {
-        const docRef = this.usersCollection.doc(); // Firestore generates an ID
-        await docRef.set({
-          ...createUserDto,
-          role: createUserDto.role || Role.User,
-        });
-        
-        const user: UserDocument = {
-          id: docRef.id,
-          username: createUserDto.username,
-          email: createUserDto.email,
-          password: createUserDto.password,
-          role: createUserDto.role || Role.User, // Reflect the role, assuming it's part of CreateUserDto
-        };
-      
-        return user;
-      }
-    
-      async findOne(identifier: string): Promise<UserDocument> {
-        const usersRef = this.usersCollection;
-        const querySnapshotByUsername = await usersRef.where('username', '==', identifier).limit(1).get();
-        const querySnapshotByEmail = await usersRef.where('email', '==', identifier).limit(1).get();
-        
-        let userDocument;
-        
-        if (!querySnapshotByUsername.empty) {
-            userDocument = querySnapshotByUsername.docs[0].data();
-        } else if (!querySnapshotByEmail.empty) {
-            userDocument = querySnapshotByEmail.docs[0].data();
-        } else {
-            throw new NotFoundException(`No user found with username/email ${identifier}`);
+  constructor(private prisma: PrismaService) {}
+
+  async create(createUserDto: CreateUserDto): Promise<User> {
+    try {
+      const user = await this.prisma.user.create({
+        data: createUserDto,
+      });
+      return user;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') { // This is the code for a unique constraint violation
+          throw new ConflictException('A user with this email already exists');
         }
-        return userDocument; // Make sure to cast this to UserDocument type as needed
-    
+      }
+      throw new InternalServerErrorException(); // Fallback for other errors
     }
+  }
 
+  async findAll(): Promise<User[]> {
+    return this.prisma.user.findMany();
+  }
+
+  async findOne(identifier: string): Promise<User> { // Updated return type to not include | null because we throw an error if not found
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: identifier },
+          { email: identifier },
+        ],
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`No user found with username/email ${identifier}`);
+    }
+    return user;
+  }
+
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    try {
+      return await this.prisma.user.update({
+        where: { id },
+        data: updateUserDto,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        // Prisma's specific error when update/delete target does not exist
+        throw new NotFoundException(`No user found with ID ${id}`);
+      }
+      throw error; // Rethrow any other errors
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    try {
+      await this.prisma.user.delete({
+        where: { id },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        // Prisma's specific error when update/delete target does not exist
+        throw new NotFoundException(`No user found with ID ${id}`);
+      }
+      throw error; // Rethrow any other errors
+    }
+  }
 }
-

@@ -1,21 +1,23 @@
-import { IsInt, IsNotEmpty, IsPositive, IsString, Min } from 'class-validator';
-import { Role } from '../users.role.enum';
+// src/users/dto/create-user.dto.ts
+import { IsEmail, IsEnum, IsNotEmpty, IsString, MinLength, IsOptional } from 'class-validator';
+import { Role } from '../role.enum'
 
 export class CreateUserDto {
+  @IsNotEmpty()
+  @IsString()
+  username: string;
 
-    @IsNotEmpty()
-    @IsString()
-    readonly username: string;
+  @IsNotEmpty()
+  @IsEmail()
+  email: string;
 
-    @IsNotEmpty()
-    @IsString()
-    readonly email: string;
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(6)
+  password: string;
 
-    @IsNotEmpty()
-    @IsString()
-    readonly password: string;
-
-    @IsNotEmpty()
-    readonly role: Role;
-
+    // In your CreateUserDto
+    @IsOptional()
+    @IsEnum(Role)
+    role?: Role;
 }

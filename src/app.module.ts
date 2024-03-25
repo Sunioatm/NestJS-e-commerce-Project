@@ -6,9 +6,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { FirestoreModule } from './firestore/firestore.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
-  imports: [ProductModule, FirestoreModule, AuthModule, UsersModule],
+  imports: [ProductModule, FirestoreModule, AuthModule, UsersModule, PrismaModule],
   controllers: [AppController],
   providers: [AppService],
 })
